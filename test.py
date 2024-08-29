@@ -9,10 +9,11 @@ from settings import asset_list
 ### PARAMETERS ###
 interval_fast = 10
 interval_slow = 50
+interval = "1d"
 tradelog = []
 initial_balance = 100000
 balance = initial_balance
-max_price = 10000
+max_price = 40000
 
 
 ### BACK TEST ###
@@ -21,7 +22,9 @@ def backtest(asset_list, start_date, end_date):
     data = {}
 
     for asset in asset_list:
-        df = asset["yfticker"].history(start=start_date, end=end_date, interval="1d")
+        df = asset["yfticker"].history(
+            start=start_date, end=end_date, interval=interval
+        )
 
         df["SMA_fast"] = ta.sma(df["Close"], interval_fast)
         df["SMA_slow"] = ta.sma(df["Close"], interval_slow)
@@ -33,7 +36,7 @@ def backtest(asset_list, start_date, end_date):
 
     # Loop through each interval
     for i in range(0, len(df)):
-        date = data[asset["ticker"]].iloc[i].names
+        date = data[asset["ticker"]].iloc[i].name
 
         # Loop through each asset
         for asset in asset_list:

@@ -13,15 +13,18 @@ api = REST(api_key, api_secret, base_url, api_version="v2")
 
 interval_fast = 10
 interval_slow = 50
-max_price = 10000
+interval = "1d"
+max_price = 40000
 
 
 ### Calculate pause
 def get_pause():
     ### Calculates difference between now and the next minute
     now = datetime.now()
-    next_min = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
-    pause = math.ceil((next_min - now).seconds)
+    next_day = now.replace(second=0, microsecond=0) + timedelta(
+        days=1
+    )  # change this depending on interval
+    pause = math.ceil((next_day - now).seconds)
     return pause
 
 
@@ -29,7 +32,7 @@ def get_pause():
 def trade(asset_list):
     for asset in asset_list:
         start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        df = asset["yfticker"].history(start=start_date, interval="1m")
+        df = asset["yfticker"].history(start=start_date, interval=interval)
 
         df["SMA_fast"] = ta.sma(df["Close"], interval_fast)
         df["SMA_slow"] = ta.sma(df["Close"], interval_slow)
