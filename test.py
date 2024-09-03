@@ -15,6 +15,9 @@ initial_balance = 100000
 balance = initial_balance
 max_price = 40000
 
+start_date = "2023-08-28"
+end_date = "2024-08-28"
+
 
 ### BACK TEST ###
 def backtest(asset_list, start_date, end_date):
@@ -134,9 +137,6 @@ def print_summary(list_of_trades):
 
 
 ### Run Test ###
-
-start_date = "2023-08-28"
-end_date = "2024-08-28"
 
 portfolio_value, final_balance = backtest(asset_list, start_date, end_date)
 portfolio_df = pd.DataFrame.from_dict(

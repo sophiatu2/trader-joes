@@ -7,10 +7,13 @@ from settings import asset_list
 ### PARAMETERS ###
 interval_fast = 10
 interval_slow = 50
+interval = "1d"
 tradelog = []
 initial_balance = 100000
 balance = initial_balance
 max_price = 10000
+
+start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
 
 ### Calculate pause
@@ -23,10 +26,9 @@ def get_pause():
 
 
 ### Trade
-def trade(asset_list):
+def trade(asset_list, start_date):
     for asset in asset_list:
-        start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        df = asset["yfticker"].history(start=start_date, interval="1m")
+        df = asset["yfticker"].history(start=start_date, interval=interval)
 
         df["SMA_fast"] = ta.sma(df["Close"], interval_fast)
         df["SMA_slow"] = ta.sma(df["Close"], interval_slow)
@@ -82,5 +84,5 @@ def trade(asset_list):
 
 ### REAL-TIME TRADE SIMULATION ###
 while True:
-    trade(asset_list)
+    trade(asset_list, start_date)
     time.sleep(get_pause())
