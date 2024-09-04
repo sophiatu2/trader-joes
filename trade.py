@@ -41,12 +41,16 @@ def trade(asset_list, start_date, cash):
         price = df.iloc[-1]["Close"]
 
         # Buy
-        if df.iloc[-1]["SMA_fast"] > df.iloc[-1]["SMA_slow"] and not asset["holding"]:
-            # Calculate max acceptable quantity of shares
-            if price > max_price:
-                quantity = 1
-            else:
+        if (
+            df.iloc[-1]["SMA_fast"] > df.iloc[-1]["SMA_slow"]
+            and not asset["holding"]
+            and cash > price
+        ):
+            # Set max acceptable quantity of shares
+            if cash > max_price:
                 quantity = int(max_price / price)
+            else:
+                quantity = int(cash / price)
 
             # Log trade
             tradelog.append(
@@ -63,12 +67,13 @@ def trade(asset_list, start_date, cash):
             asset["holding"] = True
             asset["quantity"] = quantity
             cash -= quantity * price
-
             buy += f"Buy {quantity} shares of {asset['ticker']} @ {price}\n"
 
         # Sell
         elif df.iloc[-1]["SMA_fast"] < df.iloc[-1]["SMA_slow"] and asset["holding"]:
+            # Set quantity
             quantity = asset["quantity"]
+
             # Log trade
             tradelog.append(
                 {
