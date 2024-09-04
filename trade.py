@@ -29,7 +29,9 @@ def get_pause():
 
 ### Trade
 def trade(asset_list, start_date, cash):
-    instruction = ""
+    buy = "\n"
+    sell = "\n"
+    hold = "\n"
     for asset in asset_list:
         df = asset["yfticker"].history(start=start_date, interval=interval)
 
@@ -62,7 +64,7 @@ def trade(asset_list, start_date, cash):
             asset["quantity"] = quantity
             cash -= quantity * price
 
-            instruction += f"Buy {quantity} shares of {asset['ticker']} @ {price}\n"
+            buy += f"Buy {quantity} shares of {asset['ticker']} @ {price}\n"
 
         # Sell
         elif df.iloc[-1]["SMA_fast"] < df.iloc[-1]["SMA_slow"] and asset["holding"]:
@@ -82,13 +84,13 @@ def trade(asset_list, start_date, cash):
             asset["holding"] = False
             asset["quantity"] = 0
             cash += quantity * price
-            instruction += f"Sell {quantity} shares of {asset['ticker']} @ {price}\n"
+            sell += f"Sell {quantity} shares of {asset['ticker']} @ {price}\n"
 
         else:
             quantity = asset["quantity"]
-            instruction += f"Hold {quantity} shares of {asset['ticker']} @ {price}\n"
+            hold += f"Hold {quantity} shares of {asset['ticker']} @ {price}\n"
 
-    return instruction
+    return buy + sell + hold
 
 
 ### Send email to self
