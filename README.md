@@ -14,10 +14,12 @@ Set up a settings.py with the following information:
 2. api_secret: string
 3. base_url: string
 4. asset_list: list of dictionaries (e.g., `[{"ticker": "ABC", "yfticker": yf.Ticker("ABC"), "holding": False), "quantity": 0}]`)
+5. email: string (optional if you want trading instructions to be emailed to you)
+6. password: string (optional app specific password for gmail if you want trading instructions to be emailed to you)
 
-## Real-time trading
+## Trading
 
-Run `python trade.py` for a real-time trading simulation. Trades execute every minute based on data from the past day, though these parameters can all be changed.
+Run `python trade.py` and uncomment the while loop for a real-time trading simulation. Parameters can be changed to execute trades at different intervals based on different periods of historical data. Uncomment the send_email function if you do not want the trades to be emailed to you.
 
 ## Back Testing
 
