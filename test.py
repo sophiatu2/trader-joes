@@ -11,17 +11,17 @@ interval_fast = 10
 interval_slow = 50
 interval = "1d"
 tradelog = []
-initial_balance = 100000
-balance = initial_balance
+cash = 100000
+initial_balance = cash
 max_price = 40000
 
-start_date = "2023-08-28"
-end_date = "2024-08-28"
+start_date = "2023-09-04"
+end_date = "2024-09-04"
 
 
 ### BACK TEST ###
 def backtest(asset_list, start_date, end_date):
-    global balance
+    global cash
     data = {}
 
     for asset in asset_list:
@@ -46,12 +46,16 @@ def backtest(asset_list, start_date, end_date):
             df = data[asset["ticker"]]
             price = df.iloc[i]["Close"]
             # Buy logic
-            if df.iloc[i]["SMA_fast"] > df.iloc[i]["SMA_slow"] and not asset["holding"]:
+            if (
+                df.iloc[i]["SMA_fast"] > df.iloc[i]["SMA_slow"]
+                and not asset["holding"]
+                and cash > price
+            ):
                 # Calculate max acceptable quantity of shares
-                if price > max_price:
-                    quantity = 1
-                else:
+                if cash > max_price:
                     quantity = int(max_price / price)
+                else:
+                    quantity = int(cash / price)
 
                 # Log trade
                 tradelog.append(
@@ -67,7 +71,7 @@ def backtest(asset_list, start_date, end_date):
                 # Adjust portfolio
                 asset["holding"] = True
                 asset["quantity"] = quantity
-                balance -= quantity * price
+                cash -= quantity * price
 
                 # print(f"Buy {quantity} shares of {asset['ticker']} @ {price}")
 
@@ -88,11 +92,11 @@ def backtest(asset_list, start_date, end_date):
                 # Adjust portflio
                 asset["holding"] = False
                 asset["quantity"] = 0
-                balance += quantity * price
+                cash += quantity * price
                 # print(f"Sell {quantity} shares of {asset['ticker']} @ {price}")
 
         # Calculate portfolio value at EOD
-        daily_portfolio_value = balance
+        daily_portfolio_value = cash
         for asset in asset_list:
             if asset["holding"]:
                 daily_portfolio_value += (
@@ -142,7 +146,6 @@ portfolio_value, final_balance = backtest(asset_list, start_date, end_date)
 portfolio_df = pd.DataFrame.from_dict(
     portfolio_value, orient="index", columns=["Portfolio_Value"]
 )
-print(portfolio_df.head(5))
 
 # print_summary(tradelog)
 print("Final Portfolio:")
@@ -150,7 +153,7 @@ for asset in asset_list:
     print(f"{asset['ticker']}: {asset['quantity']} shares")
 
 print(f"\nInitial Balance: ${initial_balance}")
-print(f"Final Cash Balance: ${balance}")
+print(f"Final Cash Balance: ${cash}")
 print(f"Final Portfolio Value: ${final_balance}")
 print(
     f"Total Return: {((final_balance - initial_balance) / initial_balance) * 100:.2f}%"

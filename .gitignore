@@ -163,3 +163,4 @@ cython_debug/
 settings.py
 Scripts/
 pyvenv.cfg
+testlog.txt

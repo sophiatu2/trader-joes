@@ -24,13 +24,3 @@ Run `python trade.py` and uncomment the while loop for a real-time trading simul
 ## Back Testing
 
 Run `python test.py` to test an algoritm against the SPY. Trades are executed daily based on data from the past year, though these parameters can all be changed.
-
-Test on 8/29: Using fast interval of 10 days and slow interval of 50 days
-
-Initial Balance: $100000
-
-Final Cash Balance: $60297.517475128174
-
-Final Portfolio Value: $182044.0571784973
-
-Total Return: 82.04%
