@@ -17,6 +17,8 @@ account = api.get_account()
 cash = float(account.cash)
 positions = api.list_positions()
 
+print(f"Cash: ${cash}")
+
 asset_list = []
 for position in positions:
     asset_list.append(
@@ -41,10 +43,29 @@ for ticker in tickers:
             }
         )
 
+### Parameters
 interval_fast = 10
 interval_slow = 50
 interval = "1m"
 max_price = 10000
+
+
+### Check if market is open
+def is_market_open():
+    clock = api.get_clock()
+    return clock.is_open
+
+
+### Wait until market is open
+def wait_until_open():
+    clock = api.get_clock()
+    open_time = clock.next_open
+    current_time = clock.timestamp
+
+    wait_time = (open_time - current_time).total_seconds()
+    if wait_time > 0:
+        print(f"Market is closed. Sleeping for {wait_time} seconds")
+        time.sleep(wait_time)
 
 
 ### Calculate pause
@@ -77,28 +98,29 @@ def trade(asset_list, cash):
         if (
             df.iloc[-1]["SMA_fast"] > df.iloc[-1]["SMA_slow"]
             and not asset["holding"]
-            and cash > price
+            and cash >= price
         ):
             # Set max acceptable quantity of shares
-            if cash > max_price:
+            if cash >= max_price:
                 quantity = int(max_price / price)
             else:
                 quantity = int(cash / price)
 
-            # Execute trade
-            api.submit_order(
-                symbol=asset["ticker"],
-                qty=quantity,
-                side="buy",
-                type="market",
-                time_in_force="day",
-            )
+            if quantity > 0:
+                # Execute trade
+                api.submit_order(
+                    symbol=asset["ticker"],
+                    qty=quantity,
+                    side="buy",
+                    type="market",
+                    time_in_force="day",
+                )
 
-            # Adjust portfolio
-            asset["holding"] = True
-            asset["quantity"] = quantity
-            cash -= quantity * price
-            print(f"Buy {quantity} shares of {asset['ticker']} @ {price}\n")
+                # Adjust portfolio
+                asset["holding"] = True
+                asset["quantity"] = quantity
+                cash -= quantity * price
+                print(f"Buy {quantity} shares of {asset['ticker']} @ {price}\n")
 
         # Sell
         elif df.iloc[-1]["SMA_fast"] < df.iloc[-1]["SMA_slow"] and asset["holding"]:
@@ -124,5 +146,8 @@ def trade(asset_list, cash):
 
 
 while True:
-    asset_list, cash = trade(asset_list, cash)
-    time.sleep(get_pause())
+    if is_market_open():
+        asset_list, cash = trade(asset_list, cash)
+        time.sleep(get_pause())
+    else:
+        wait_until_open()
