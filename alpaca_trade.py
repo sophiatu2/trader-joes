@@ -9,6 +9,8 @@ from alpaca_trade_api import REST
 import yfinance as yf
 import pandas_ta as ta
 import math, time
+import csv
+import os
 
 api = REST(api_key, api_secret, base_url, api_version="v2")
 
@@ -48,6 +50,7 @@ interval_fast = 10
 interval_slow = 50
 interval = "1m"
 max_price = 10000
+trade_log_file = "trade_log.csv"
 
 
 ### Check if market is open
@@ -77,6 +80,32 @@ def get_pause():
     )  # change this depending on interval
     pause = math.ceil((next_int - now).seconds)
     return pause
+
+
+### Initialize csv log file
+def initialize_trade_log(file_path):
+    if not os.path.exists(file_path):
+        with open(file_path, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(
+                ["Date", "Ticker", "Action", "Quantity", "Price", "Cash Balance"]
+            )
+
+
+### Log trade in csv file
+def log_trade(file_path, ticker, action, quantity, price, cash):
+    with open(file_path, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(
+            [
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                ticker,
+                action,
+                quantity,
+                price,
+                cash,
+            ]
+        )
 
 
 ### Trade
@@ -120,7 +149,8 @@ def trade(asset_list, cash):
                 asset["holding"] = True
                 asset["quantity"] = quantity
                 cash -= quantity * price
-                print(f"Buy {quantity} shares of {asset['ticker']} @ {price}\n")
+                # print(f"Buy {quantity} shares of {asset['ticker']} @ {price}\n")
+                log_trade(trade_log_file, asset["ticker"], "Buy", quantity, price, cash)
 
         # Sell
         elif df.iloc[-1]["SMA_fast"] < df.iloc[-1]["SMA_slow"] and asset["holding"]:
@@ -140,10 +170,14 @@ def trade(asset_list, cash):
             asset["holding"] = False
             asset["quantity"] = 0
             cash += quantity * price
-            print(f"Sell {quantity} shares of {asset['ticker']} @ {price}\n")
+            # print(f"Sell {quantity} shares of {asset['ticker']} @ {price}\n")
+            log_trade(trade_log_file, asset["ticker"], "Sell", quantity, price, cash)
 
     return asset_list, cash
 
+
+### MAIN ###
+initialize_trade_log(trade_log_file)
 
 while True:
     if is_market_open():
