@@ -1,0 +1,15 @@
+# Ignore everything
+
+-
+
+# Except these files
+
+!alpaca.py
+!main.py
+!settings.py
+!requirements.txt
+
+# Ignore Dockerfile and .dockerignore themselves
+
+Dockerfile
+.dockerignore

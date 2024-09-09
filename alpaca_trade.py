@@ -1,66 +1,64 @@
-from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
-from alpaca.data import StockHistoricalDataClient, StockTradesRequest
-from alpaca.data.live import StockDataStream
 from settings import api_key, api_secret, base_url, tickers
 from datetime import datetime, timedelta
 from alpaca_trade_api import REST
+from google.cloud import storage
 import yfinance as yf
 import pandas_ta as ta
+import pandas as pd
 import math, time
 import csv
 import os
 
-api = REST(api_key, api_secret, base_url, api_version="v2")
 
-# Get current portfolio
-account = api.get_account()
-cash = float(account.cash)
-positions = api.list_positions()
+def get_portfolio(api):
+    """Set up initial portfolio"""
 
-print(f"Cash: ${cash}")
+    # Get current portfolio
+    account = api.get_account()
+    cash = float(account.cash)
+    positions = api.list_positions()
 
-asset_list = []
-for position in positions:
-    asset_list.append(
-        {
-            "ticker": position.symbol,
-            "yfticker": yf.Ticker(position.symbol),  # Assuming you're using yfinance
-            "holding": True,
-            "quantity": int(position.qty),  # Convert the quantity from string to int
-        }
-    )
+    print(f"Cash: ${cash}")
 
-# Append other tickers
-existing_tickers = {asset["ticker"] for asset in asset_list}
-for ticker in tickers:
-    if ticker not in existing_tickers:
+    asset_list = []
+    for position in positions:
         asset_list.append(
             {
-                "ticker": ticker,
-                "yfticker": yf.Ticker(ticker),
-                "holding": False,
-                "quantity": 0,
+                "ticker": position.symbol,
+                "yfticker": yf.Ticker(
+                    position.symbol
+                ),  # Assuming you're using yfinance
+                "holding": True,
+                "quantity": int(
+                    position.qty
+                ),  # Convert the quantity from string to int
             }
         )
 
-### Parameters
-interval_fast = 10
-interval_slow = 50
-interval = "1m"
-max_price = 10000
-trade_log_file = "trade_log.csv"
+    # Append other tickers
+    existing_tickers = {asset["ticker"] for asset in asset_list}
+    for ticker in tickers:
+        if ticker not in existing_tickers:
+            asset_list.append(
+                {
+                    "ticker": ticker,
+                    "yfticker": yf.Ticker(ticker),
+                    "holding": False,
+                    "quantity": 0,
+                }
+            )
+
+    return asset_list, cash
 
 
-### Check if market is open
-def is_market_open():
+def is_market_open(api):
+    """Check if market is open"""
     clock = api.get_clock()
     return clock.is_open
 
 
-### Wait until market is open
-def wait_until_open():
+def wait_until_open(api):
+    """Wait until market is open"""
     clock = api.get_clock()
     open_time = clock.next_open
     current_time = clock.timestamp
@@ -73,6 +71,7 @@ def wait_until_open():
 
 ### Calculate pause
 def get_pause():
+    """Calculate pause until next minute"""
     ### Calculates difference between now and the next minute
     now = datetime.now()
     next_int = now.replace(second=0, microsecond=0) + timedelta(
@@ -82,8 +81,8 @@ def get_pause():
     return pause
 
 
-### Initialize csv log file
 def initialize_trade_log(file_path):
+    """Create trade log at file_path if it does not exist"""
     if not os.path.exists(file_path):
         with open(file_path, mode="w", newline="") as file:
             writer = csv.writer(file)
@@ -92,8 +91,8 @@ def initialize_trade_log(file_path):
             )
 
 
-### Log trade in csv file
 def log_trade(file_path, ticker, action, quantity, price, cash):
+    """Log trade to csv file at file_path"""
     with open(file_path, mode="a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(
@@ -108,8 +107,29 @@ def log_trade(file_path, ticker, action, quantity, price, cash):
         )
 
 
+### For cloud
+def log_to_gcs(file_name, trade_data, bucket):
+    """Log trade to GCS"""
+    df = pd.DataFrame(trade_data)
+    csv_data = df.to_csv(index=False)
+
+    blob = bucket.blob(file_name)
+    blob.upload_from_string(csv_data)
+
+
 ### Trade
-def trade(asset_list, cash):
+def trade(
+    asset_list,
+    cash,
+    interval,
+    interval_fast,
+    interval_slow,
+    max_price,
+    api,
+    bucket,
+    trade_log_file,
+):
+    """Trade based on provided parameters"""
     for asset in asset_list:
         start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         df = asset["yfticker"].history(start=start_date, interval=interval)
@@ -149,8 +169,25 @@ def trade(asset_list, cash):
                 asset["holding"] = True
                 asset["quantity"] = quantity
                 cash -= quantity * price
-                # print(f"Buy {quantity} shares of {asset['ticker']} @ {price}\n")
-                log_trade(trade_log_file, asset["ticker"], "Buy", quantity, price, cash)
+
+                # For terminal
+                print(f"Buy {quantity} shares of {asset['ticker']} @ {price}\n")
+
+                # For csv
+                # log_trade(trade_log_file, asset["ticker"], "buy", quantity, price, cash)
+
+                # For cloud
+                trade_data = [
+                    {
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                        "ticker": asset["ticker"],
+                        "side": "buy",
+                        "quantity:": quantity,
+                        "price": price,
+                        "cash": cash,
+                    }
+                ]
+                log_to_gcs(trade_log_file, trade_data, bucket)
 
         # Sell
         elif df.iloc[-1]["SMA_fast"] < df.iloc[-1]["SMA_slow"] and asset["holding"]:
@@ -170,18 +207,87 @@ def trade(asset_list, cash):
             asset["holding"] = False
             asset["quantity"] = 0
             cash += quantity * price
-            # print(f"Sell {quantity} shares of {asset['ticker']} @ {price}\n")
-            log_trade(trade_log_file, asset["ticker"], "Sell", quantity, price, cash)
+
+            # For terminal
+            print(f"Sell {quantity} shares of {asset['ticker']} @ {price}\n")
+
+            # For csv
+            # log_trade(trade_log_file, asset["ticker"], "Sell", quantity, price, cash)
+
+            # For cloud
+            trade_data = [
+                {
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "ticker": asset["ticker"],
+                    "side": "sell",
+                    "quantity:": quantity,
+                    "price": price,
+                    "cash": cash,
+                }
+            ]
+            log_to_gcs(trade_log_file, trade_data, bucket)
 
     return asset_list, cash
 
 
 ### MAIN ###
-initialize_trade_log(trade_log_file)
+def alpaca_trade():
+    """Set parameters and trade while the market is open"""
+    ### Parameters
+    interval_fast = 10
+    interval_slow = 50
+    interval = "1m"
+    max_price = 10000
+    trade_log_file = "trade_log.csv"
 
-while True:
-    if is_market_open():
-        asset_list, cash = trade(asset_list, cash)
-        time.sleep(get_pause())
+    api = REST(api_key, api_secret, base_url, api_version="v2")
+    asset_list, cash = get_portfolio(api)
+
+    # For cloud
+    bucket_name = "trader_joes"
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+
+    # For local
+    # initialize_trade_log(trade_log_file)
+
+    # Run once
+    if is_market_open(api):
+        trade(
+            asset_list,
+            cash,
+            interval,
+            interval_fast,
+            interval_slow,
+            max_price,
+            api,
+            bucket,
+            trade_log_file,
+        )
     else:
-        wait_until_open()
+        print("Market is closed. Exiting.")
+        exit(0)
+
+    # Run in a loop
+    # while True:
+    #     if is_market_open(api):
+    #         asset_list, cash = trade(
+    #             asset_list,
+    #             cash,
+    #             interval,
+    #             interval_fast,
+    #             interval_slow,
+    #             max_price,
+    #             api,
+    #             bucket,
+    #             trade_log_file,
+    #         )
+    #         # pause until next minute
+    #         time.sleep(get_pause())
+    #     else:
+    #         # if the market is closed, wait until next open
+    #         wait_until_open(api)
+
+
+if __name__ == "__main__":
+    alpaca_trade()
